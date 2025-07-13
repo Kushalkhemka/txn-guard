@@ -1,30 +1,40 @@
-# Txn Guard
+# Txn Guard: Agentic Transaction Surveillance Backend
 
-Backend service for semantic transaction surveillance and fraud triage. The service turns normalized transaction records into embedded narratives, stores them in a Chroma-backed evidence corpus, retrieves similar historical transactions, computes contextual risk signals, and returns an auditable triage decision.
+Txn Guard is a FastAPI backend for fraud and AML-oriented transaction surveillance. It converts normalized transaction records into semantic narratives, embeds them into a persistent vector evidence corpus, retrieves similar activity, evaluates behavioral and compliance signals, and returns an auditable triage response.
 
-This repository is the backend foundation for a larger market/financial intelligence platform. It intentionally keeps API, domain, storage, embedding, and orchestration code separated so the fraud pipeline can evolve without coupling it to a future dashboard or frontend.
+## Project Overview
 
-## Current Scope
+The system is designed around a modular surveillance pipeline:
 
-The service supports:
+1. Standardize incoming transaction data.
+2. Generate a searchable transaction narrative.
+3. Embed the narrative using SentenceTransformers.
+4. Store and retrieve evidence through ChromaDB.
+5. Build a user-level transaction profile.
+6. Evaluate fraud, AML, and contextual risk signals.
+7. Aggregate the result into a triage decision with traceable agent outputs.
 
-- Transaction ingestion into a persistent vector evidence store.
-- Semantic similarity search over transaction narratives.
-- User-level behavioral profiling using historical transactions.
-- Context signals for spend shift, merchant/device/location novelty, and transaction velocity.
-- AML-oriented compliance findings for screening hits, high-risk customer/jurisdiction metadata, and possible structuring patterns.
-- Agent-style orchestration that standardizes input, retrieves evidence, evaluates signals, assigns a risk band, and returns an analyst-readable trace.
-- Local synthetic data generation for development only.
+The backend is intentionally separated from any dashboard or frontend so it can be used as the service layer behind analyst tools, monitoring workflows, or internal investigation systems.
 
-The service does not replace a regulated AML screening provider. Sanctions, PEP, adverse media, jurisdiction, and KYC risk results should come from upstream compliance systems and be passed through transaction metadata. This backend uses those inputs alongside behavioral signals to produce a triage response.
+## Key Features
+
+- Semantic evidence retrieval over transaction narratives.
+- Persistent vector storage with ChromaDB.
+- Behavioral profiling by user, merchant, device, location, spend, and velocity.
+- Fraud signal generation for spend shifts, new device usage, geo changes, merchant novelty, and rapid repeat activity.
+- AML-oriented compliance checks from configurable screening and customer-risk metadata.
+- Agent-style orchestration with traceable standardization, signal, retrieval, compliance, and risk aggregation steps.
+- FastAPI endpoints for ingestion, search, triage, and user transaction history.
+- Configurable scoring thresholds, evidence fields, AML metadata mappings, and embedding model.
+- Focused test suite for scoring, compliance findings, and orchestration behavior.
 
 ## Architecture
 
 ```text
-client / ingestion job
+Client / Ingestion Job
         |
         v
-FastAPI routes
+FastAPI Routes
         |
         v
 FraudTriageOrchestrator
@@ -37,50 +47,70 @@ FraudTriageOrchestrator
         +-- UserTransactionProfile
 ```
 
-Package layout:
+### Core Components
+
+- **API Layer**: FastAPI routes for transaction ingestion, evidence search, triage, and user history.
+- **Domain Layer**: Pydantic models for transaction input, stored evidence, signals, compliance findings, and triage responses.
+- **Embedding Layer**: SentenceTransformer-backed vectorization for transaction narratives.
+- **Storage Layer**: ChromaDB persistence behind a vector-store interface.
+- **Signal Layer**: Contextual fraud and behavioral signal generation.
+- **Compliance Layer**: AML-oriented findings driven by configurable screening metadata.
+- **Orchestration Layer**: Coordinates standardization, retrieval, signal evaluation, compliance checks, and final risk aggregation.
+
+## Project Structure
 
 ```text
-src/fraud_detection/
-  api/          FastAPI app, routes, dependency wiring
-  agents/       Backend-safe orchestration layer
-  core/         Runtime configuration
-  domain/       Pydantic request/response and domain models
-  services/     Embeddings, narratives, profile, signal and compliance logic
-  storage/      Vector store abstraction and Chroma implementation
-scripts/        Development utilities
-tests/          Focused unit tests
+txn-guard/
+├── scripts/
+│   └── seed_synthetic.py
+├── src/
+│   └── fraud_detection/
+│       ├── agents/
+│       ├── api/
+│       ├── core/
+│       ├── domain/
+│       ├── services/
+│       └── storage/
+├── tests/
+├── .env.example
+├── pyproject.toml
+├── LICENSE
+└── README.md
 ```
 
-## Running Locally
+## Getting Started
 
-- Python 3.11 or newer.
-- ChromaDB for local vector persistence.
-- SentenceTransformers for embedding generation.
-
-Create a local environment:
+### Installation
 
 ```bash
+git clone https://github.com/Kushalkhemka/txn-guard.git
+cd txn-guard
+
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Start the API:
+### Run the API
 
 ```bash
 uvicorn fraud_detection.api.main:app --reload
 ```
 
-OpenAPI documentation is available at:
+OpenAPI docs:
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-The default local settings are in `.env.example`. Risk weights, thresholds, vector-store path, and embedding model can be changed from environment variables without touching the pipeline code.
+### Seed Synthetic Transactions
 
-## API
+```bash
+python scripts/seed_synthetic.py --count 1000 --user-count 80
+```
+
+## API Usage
 
 ### Health Check
 
@@ -88,7 +118,7 @@ The default local settings are in `.env.example`. Risk weights, thresholds, vect
 curl http://127.0.0.1:8000/health
 ```
 
-### Ingest One Transaction
+### Ingest Transaction
 
 ```bash
 curl -X POST http://127.0.0.1:8000/transactions \
@@ -112,27 +142,6 @@ curl -X POST http://127.0.0.1:8000/transactions \
   }'
 ```
 
-### Bulk Ingest
-
-```bash
-curl -X POST http://127.0.0.1:8000/transactions/bulk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "transactions": [
-      {
-        "transaction_id": "txn_002",
-        "user_id": "user_123",
-        "amount": 48.10,
-        "currency": "USD",
-        "merchant": "Local Grocery",
-        "timestamp": "2026-06-13T11:00:00Z",
-        "location": "New York",
-        "device_id": "device_a"
-      }
-    ]
-  }'
-```
-
 ### Search Evidence
 
 ```bash
@@ -147,7 +156,7 @@ curl -X POST http://127.0.0.1:8000/search \
   }'
 ```
 
-### Triage A Transaction
+### Triage Transaction
 
 ```bash
 curl -X POST http://127.0.0.1:8000/triage \
@@ -164,70 +173,62 @@ curl -X POST http://127.0.0.1:8000/triage \
   }'
 ```
 
-The triage response includes:
+## Triage Response
 
-- `risk_score`: normalized score between `0` and `1`.
+The triage endpoint returns:
+
+- `risk_score`: normalized risk score from `0` to `1`.
 - `risk_band`: `low`, `review`, or `escalate`.
-- `signals`: contextual findings with scores and details.
-- `compliance_findings`: AML/compliance findings with severity and supporting details.
-- `evidence`: nearest transaction records from the vector corpus.
-- `agent_trace`: step-by-step orchestration output for audit/debugging.
+- `signals`: behavioral and contextual fraud signals.
+- `compliance_findings`: AML-oriented screening and customer-risk findings.
+- `evidence`: nearest matching transactions from the vector corpus.
+- `typologies`: detected risk patterns.
+- `agent_trace`: step-by-step orchestration output.
 
-## Development Data
+## Scoring Pipeline
 
-Seed synthetic transactions for local testing:
+Txn Guard combines multiple signal families:
 
-```bash
-python scripts/seed_synthetic.py --count 1000 --user-count 80
-```
+- **Amount shift**: detects transaction values outside the user's historical spend profile.
+- **Novelty**: detects new merchant, device, and location patterns.
+- **Velocity**: detects repeat activity inside a configurable time window.
+- **Evidence risk**: incorporates retrieved evidence when prior transactions include configured risk labels or scores.
+- **AML compliance**: evaluates screening metadata, customer risk, jurisdiction risk, and possible structuring.
 
-Synthetic data is not used by the service automatically. Production ingestion should provide normalized transaction records from the source payment, banking, ledger, or event pipeline.
+## Configuration
+
+Runtime behavior is configured through `.env` or environment variables. The main configurable areas are:
+
+- Vector persistence path and collection name.
+- Embedding model.
+- Similarity result count.
+- Risk thresholds and signal weights.
+- Evidence score and label field mappings.
+- AML screening and customer-risk metadata field mappings.
 
 ## Testing
-
-Run the focused test suite:
 
 ```bash
 pytest
 ```
 
-The current tests cover:
+Current coverage includes:
 
-- Context signal generation for spend shift, novelty, and velocity.
-- AML compliance findings from screening metadata and structuring patterns.
-- End-to-end orchestrator scoring using an explicit in-memory vector store.
+- Context signal generation.
+- AML compliance findings.
+- Orchestrator scoring and evidence aggregation.
+- Configurable metadata mappings.
 
-## Scoring Model
+## Tech Stack
 
-The current score is a transparent weighted aggregation:
+- FastAPI
+- Pydantic
+- SentenceTransformers
+- ChromaDB
+- Pandas
+- Faker
+- Pytest
 
-- Amount shift against the user's historical spend profile.
-- Novel merchant, device, or location for the user.
-- Transaction velocity inside a configurable time window.
-- Retrieved evidence risk when historical records include configured risk score, boolean, or label fields.
-- AML compliance findings from configured screening fields, customer/jurisdiction risk fields, and possible structuring patterns.
+## License
 
-Similarity alone does not increase risk unless the retrieved evidence contains risk labels. This avoids treating "similar" as automatically suspicious.
-
-## Production Hardening Checklist
-
-Before deploying this as a production fraud service, add:
-
-- Authentication and authorization for all API routes.
-- Request IDs, structured logs, metrics, and tracing.
-- Durable source-of-truth storage for raw transactions and triage decisions.
-- Database migrations and environment-specific Chroma or vector database provisioning.
-- Rate limits and payload size limits.
-- Model/version metadata in every triage response.
-- Offline evaluation against labeled fraud, chargeback, dispute, and false-positive data.
-- Monitoring for embedding drift, retrieval quality, and score calibration.
-- PII handling policy, retention controls, and encryption requirements.
-- Case management or queue integration for `review` and `escalate` decisions.
-
-## Assumptions
-
-- Input transactions are already normalized before reaching this service.
-- Timestamps should include timezone information when available.
-- `user_id`, `merchant`, `location`, and `device_id` are stable enough to support behavioral profiling.
-- Evidence labels and AML screening truth are supplied by upstream systems through configurable transaction metadata fields.
-- The current orchestrator is deterministic and backend-safe. CrewAI or another LLM-driven agent layer can be integrated later behind the same orchestration boundary if there is a clear production need.
+MIT License.
